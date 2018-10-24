@@ -10,9 +10,9 @@ import re
 
 
 def main():
-    lens_tests = create_tests()
+    lens_tests = create_thrupower_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
-    infile = 'dlm_data\VERD3_2018-10-18_17.15.38.DDF'
+    lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
     ddf_search_dictionary = {
         'DBP Best Fit Tx': '',
         'DBP Best Fit Ty': '',
@@ -22,17 +22,32 @@ def main():
         'Center Power PV': '',
         'Center Power Average': ''
     }
-    test = DdfDataGet(infile, ddf_search_dictionary).ddf_contents
-    property_names, property_values = ddf_results_prep(test)
-    ddf_plot(property_names, property_values)
-    for file in glob2.glob('*\VERD3_2018-10-18_17.15.38.PMF'):
-        job_identifier = re.search(job_search, file)
-        for tests, testparams in lens_tests.items():
-            testparams.update({'JOB': job_identifier.group(1)})
-        for tests, testparams in lens_tests.items():
-            testparams.update({'POWERMAP': PmfDataGet(file,testparams).powermap})
-            visualize_powermap(testparams)
-    plt.show()
+    file_count = 1
+    for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'):
+        for item in lens_list:
+            lens_figure = plt.figure(file_count)
+            image_count = 1
+            for measure_type_file_path in glob2.glob(fast_tool_file_path + '\*'):
+                for pmf_file in glob2.glob(measure_type_file_path + '\\' + item + '*.PMF'):
+                    job_identifier = re.search(job_search, pmf_file)
+                    # todo add the absolute filepath to this read
+                    ddf_file = re.sub('.PMF','',os.path.abspath(pmf_file + '.DDF'))
+                    ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
+                    property_names, property_values = ddf_results_prep(ddf_data)
+                    ddf_plot(property_names, property_values, image_count)
+                    image_count = image_count+1
+                    for tests, testparams in lens_tests.items():
+                        testparams.update({'JOB': job_identifier.group(1)})
+                    for tests, testparams in lens_tests.items():
+                        testparams.update({'POWERMAP': PmfDataGet(pmf_file,testparams).powermap})
+                        visualize_powermap(testparams, image_count)
+                        image_count = image_count + 1
+            file_count = file_count + 1
+        plt.show()
+
+def test_glob2():
+    for file in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*\*'):
+        print(file)
 
 def test_ddf():
     infile = 'dlm_data\VERD3_2018-10-18_17.15.38.DDF'
@@ -50,7 +65,7 @@ def test_ddf():
     #read_ddf_contents(test)
 
 
-def create_tests():
+def create_thrupower_tests():
     test_dpt = {
         'JOB': '',
         'MEASURE_TYPE': 'E',
@@ -63,11 +78,11 @@ def create_tests():
         'POWER_QUANTITY': 'C',
         'MEASURED_POWER_TYPE': 'T'
     }
-    lens_tests = {
+    thrupower_tests = {
         'dpt': test_dpt,
         'cyl': test_cyl
     }
-    return lens_tests
+    return thrupower_tests
 
 def ddf_results_prep(results_dictionary):
     graphable_error_values = []
@@ -84,7 +99,7 @@ def ddf_results_prep(results_dictionary):
             max_val = max(row)
         if min(row) < min_val:
             min_val = min(row)
-    print(min_val)
+    #print(min_val)
     for row in float_property_values:
         error = abs(row[1])-row[2]
         error_values.append(error)
@@ -96,13 +111,14 @@ def ddf_results_prep(results_dictionary):
 def get_bar_multiplier(max_val,min_val,val):
     return (val-min_val)/(max_val-min_val)
 
-def ddf_plot(property_names, property_values):
-    fig, ax = plt.subplots()
-    print(property_names)
-    print(property_values)
+def ddf_plot(property_names, property_values, figure_index):
+    ax = plt.subplot(230 + figure_index)
+    #print(property_names)
+    #print(property_values)
     plt.barh(property_names, property_values)
+    #plt.imshow(ax)
     #plt.yticks(range(property_names),property_names)
-    plt.show()
+    #plt.show()
 
 class DdfDataGet():
     # todo get DBP Tx, Ty, Rz, Full Lens GMC, Center GMC, Center Power PV, Center Power Average
@@ -155,27 +171,27 @@ class PmfDataGet():
                         self.powermap = powermap
 
 
-def visualize_powermap(powermap_params):
+def visualize_powermap(powermap_params, figure_index):
     job = powermap_params.get('JOB')
     powermap = powermap_params.get('POWERMAP')
     measure_type = powermap_params.get('MEASURE_TYPE')
     power_quantity = powermap_params.get('POWER_QUANTITY')
     measured_power_type = powermap_params.get('MEASURED_POWER_TYPE')
-    figure_name = job + ', ' + measure_type + ', ' + power_quantity + ', ' + measured_power_type
-    fig = plt.figure()
-    fig.subplots_adjust(top=0.9)
-    ax1 = fig.add_subplot(111)
+    subplot_name = job + ', ' + measure_type + ', ' + power_quantity + ', ' + measured_power_type
+    #fig = plt.figure()
+    ax1 = plt.subplot(230 + figure_index)
     ax1.set_ylabel('Y position, mm')
     ax1.set_xlabel('X position, mm')
-    ax1.set_title(figure_name)
+    ax1.set_title(subplot_name)
     copy_colormap = plt.cm.nipy_spectral
     palette = copy_colormap
     palette.set_bad('w', 1.0)
     masked_powermap = np.ma.masked_where(powermap > 20, powermap)
     plt.imshow(masked_powermap, cmap=palette, interpolation='bilinear', vmin=-0.25, vmax=0.3)
+    #lens_figure.subplots_adjust(top=0.9)
     plt.colorbar(label='Power, dpt')
-    plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
-                bbox_inches='tight')
+    #plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
+    #            bbox_inches='tight')
 
 
 def gen_acc_test():
