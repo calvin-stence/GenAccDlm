@@ -12,7 +12,20 @@ import re
 def main():
     lens_tests = create_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
-    for file in glob2.glob('*\*.PMF'):
+    infile = 'dlm_data\VERD3_2018-10-18_17.15.38.DDF'
+    ddf_search_dictionary = {
+        'DBP Best Fit Tx': '',
+        'DBP Best Fit Ty': '',
+        'DBP Best Fit Rz': '',
+        'FULL_LENS GMC': '',
+        'Center GMC': '',
+        'Center Power PV': '',
+        'Center Power Average': ''
+    }
+    test = DdfDataGet(infile, ddf_search_dictionary).ddf_contents
+    property_names, property_values = ddf_results_prep(test)
+    ddf_plot(property_names, property_values)
+    for file in glob2.glob('*\VERD3_2018-10-18_17.15.38.PMF'):
         job_identifier = re.search(job_search, file)
         for tests, testparams in lens_tests.items():
             testparams.update({'JOB': job_identifier.group(1)})
@@ -23,7 +36,7 @@ def main():
 
 def test_ddf():
     infile = 'dlm_data\VERD3_2018-10-18_17.15.38.DDF'
-    search_dictionary = {
+    ddf_search_dictionary = {
         'DBP Best Fit Tx':'',
         'DBP Best Fit Ty':'',
         'DBP Best Fit Rz':'',
@@ -63,29 +76,32 @@ def ddf_results_prep(results_dictionary):
     property_values = list(results_dictionary.values())
     float_property_values = []
     max_val = 0
+    min_val = 0
     for row in property_values:
         float_property_values.append([float(i) for i in row])
     for row in float_property_values:
         if max(row) > max_val:
             max_val = max(row)
+        if min(row) < min_val:
+            min_val = min(row)
+    print(min_val)
     for row in float_property_values:
         error = abs(row[1])-row[2]
         error_values.append(error)
-        scaled_error = error*get_bar_multiplier(max_val,error)
+        scaled_error = get_bar_multiplier(max_val,min_val,error)
         graphable_error_values.append(scaled_error)
-    print(error_values)
-    print(graphable_error_values)
+    return property_names, graphable_error_values
 
 
-def get_bar_multiplier(maxval,val):
-    return maxval/val
+def get_bar_multiplier(max_val,min_val,val):
+    return (val-min_val)/(max_val-min_val)
 
-def ddf_plot(ddf_dictionary):
+def ddf_plot(property_names, property_values):
     fig, ax = plt.subplots()
-    for property, lists in ddf_dictionary.items():
-        plt.barh(range(len(ddf_dictionary)), list(ddf_dictionary.values()))
-        plt.yticks(range(len(ddf_dictionary)),list(ddf_dictionary.keys()))
-
+    print(property_names)
+    print(property_values)
+    plt.barh(property_names, property_values)
+    #plt.yticks(range(property_names),property_names)
     plt.show()
 
 class DdfDataGet():
@@ -95,12 +111,15 @@ class DdfDataGet():
         with open(self.file) as csvfile:
             file_reader = csv.reader(csvfile, delimiter=';', lineterminator='\n')
             filedata = DdfDataGet.preprocess_ddf(self, list(file_reader))
-            for row in filedata:
-                for i in range(len(row)):
-                    for search, val in search_dictionary.items():
+            output_dictionary = {}
+            for search, val in search_dictionary.items():
+                for row in filedata:
+                    if search in output_dictionary.keys():
+                        pass
+                    for i in range(len(row)):
                         if re.search(search,row[i]):
-                            search_dictionary.update({search:row[3:6]})
-            self.ddf_contents = search_dictionary
+                            output_dictionary.update({search:row[3:6]})
+            self.ddf_contents = output_dictionary
 
 
     def preprocess_ddf(self, list):  # take in the entire pmf file in the form of a list
@@ -185,4 +204,4 @@ class PmfmtParse():
         return list  # return the list-form ready pmf for powermap extraction
 
 if __name__ == "__main__":
-    test_ddf()
+    main()
