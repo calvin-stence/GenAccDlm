@@ -7,6 +7,7 @@ import numpy as np
 import shutil
 import os
 import re
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 def main():
@@ -23,47 +24,58 @@ def main():
         'Center Power Average': ''
     }
     file_count = 1
-    for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'):
-        for item in lens_list:
-            lens_figure = plt.figure(file_count)
-            image_count = 1
-            for measure_type_file_path in glob2.glob(fast_tool_file_path + '\*'):
-                for pmf_file in glob2.glob(measure_type_file_path + '\\' + item + '*.PMF'):
-                    job_identifier = re.search(job_search, pmf_file)
-                    # todo add the absolute filepath to this read
-                    ddf_file = re.sub('.PMF','',os.path.abspath(pmf_file + '.DDF'))
-                    ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
-                    property_names, property_values = ddf_results_prep(ddf_data)
-                    ddf_plot(property_names, property_values, image_count)
-                    image_count = image_count+1
-                    for tests, testparams in lens_tests.items():
-                        testparams.update({'JOB': job_identifier.group(1)})
-                    for tests, testparams in lens_tests.items():
-                        testparams.update({'POWERMAP': PmfDataGet(pmf_file,testparams).powermap})
-                        visualize_powermap(testparams, image_count)
-                        image_count = image_count + 1
-            file_count = file_count + 1
-        plt.show()
+    ddf_data_tracker = []
+    #test_result_figure_dictionary = {}
+    for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'): #for each fast tool directory found
+        pdf_lab, pdf_generator, pdf_fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))
+        with PdfPages('InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf') as pdf:
+            for item in lens_list: #for each lens in that fast tool directory
+                lens_figure = plt.figure(file_count, figsize=(21,11)) #create a figure for that fast tool's data
+                image_count = 1 # set the image count (for placing the image in the right position in the figure) to 1
+                for measure_type_file_path in glob2.glob(fast_tool_file_path + '\*'): # for each type of measure (RTC and DBP)
+                    for pmf_file in glob2.glob(measure_type_file_path + '\\' + item + '*.PMF'): #for each .PMF file in the current fast tool, lens, and RTC or DBP folder
+                        job_identifier = item#re.search(job_search, pmf_file) # figure out which
+                        abs_filepath = os.path.abspath(pmf_file)
+                        ddf_file = re.sub('.PMF','',abs_filepath + '.DDF')
+                        ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
+                        property_names, property_values, error_values, passing_status = ddf_results_prep(ddf_data)
+                        ddf_table(property_names, property_values, error_values, passing_status, image_count, item)
+                        image_count = image_count+1
+                        lab, generator, fast_tool, measure = genacc_figurename_get(abs_filepath)
+                        for tests, testparams in lens_tests.items():
+                            testparams.update({'JOB': item + ' ' + measure})
+                        for tests, testparams in lens_tests.items():
+                            testparams.update({'POWERMAP': PmfDataGet(pmf_file,testparams).powermap})
+                            visualize_powermap(testparams, image_count)
+                            image_count = image_count + 1
+                lens_figure.suptitle('GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item)  # add a title to that figure
+                file_count = file_count + 1
+            #lens_figure.subplots_adjust(left = .16, right=.95, top=.95, bottom=0.08)
+                pdf.savefig(lens_figure)
+                plt.close()
 
-def test_glob2():
-    for file in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*\*'):
-        print(file)
+        #plt.show()
+        # plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
+        #            bbox_inches='tight')
 
-def test_ddf():
-    infile = 'dlm_data\VERD3_2018-10-18_17.15.38.DDF'
-    ddf_search_dictionary = {
-        'DBP Best Fit Tx':'',
-        'DBP Best Fit Ty':'',
-        'DBP Best Fit Rz':'',
-        'FULL_LENS GMC':'',
-        'Center GMC':'',
-        'Center Power PV':'',
-        'Center Power Average':''
-    }
-    test = DdfDataGet(infile,search_dictionary).ddf_contents
-    ddf_results_prep(test)
-    #read_ddf_contents(test)
 
+def genacc_filename_get(abs_filepath):
+    abs_filepath_regex = re.compile('\\\([\w]+)\\\([\d]+[\w]?)\\\(\w\w\d)')
+    search_result = re.search(abs_filepath_regex, abs_filepath)
+    lab = search_result.group(1)
+    generator_number = search_result.group(2)
+    fast_tool = search_result.group(3)
+    return lab, generator_number, fast_tool
+
+
+def genacc_figurename_get(abs_filepath):
+    abs_filepath_regex = re.compile('\\\([\w]+)\\\([\d]+[\w]?)\\\(\w\w\d)\\\(\w\w\w)_DATA')
+    search_result = re.search(abs_filepath_regex, abs_filepath)
+    lab = search_result.group(1)
+    generator_number = search_result.group(2)
+    fast_tool = search_result.group(3)
+    measure_type = search_result.group(4)
+    return lab, generator_number, fast_tool, measure_type
 
 def create_thrupower_tests():
     test_dpt = {
@@ -84,41 +96,99 @@ def create_thrupower_tests():
     }
     return thrupower_tests
 
+def test_ddf():
+    infile = 'GENERATOR_ACCEPTANCE\TEST_LAB_1\\26001\FT1\DBP_DATA\VERD3_2018-10-18_17.15.38.DDF'
+    image_count = 1
+    item = 'VERD3'
+    ddf_search_dictionary = {
+        'DBP Best Fit Tx':'',
+        'DBP Best Fit Ty':'',
+        'DBP Best Fit Rz':'',
+        'FULL_LENS GMC':'',
+        'Center GMC':'',
+        'Center Power PV':'',
+        'Center Power Average':''
+    }
+    ddf_data = DdfDataGet(infile, ddf_search_dictionary).ddf_contents
+    property_names, property_values, error_values, passing_status = ddf_results_prep(ddf_data)
+    ddf_table(property_names, property_values, error_values, passing_status, image_count, item)
+
 def ddf_results_prep(results_dictionary):
     graphable_error_values = []
     error_values = []
+    passing_status = []
     property_names = list(results_dictionary.keys())
     property_values = list(results_dictionary.values())
+    graphable_property_values = []
     float_property_values = []
     max_val = 0
     min_val = 0
     for row in property_values:
         float_property_values.append([float(i) for i in row])
     for row in float_property_values:
-        if max(row) > max_val:
-            max_val = max(row)
-        if min(row) < min_val:
-            min_val = min(row)
-    #print(min_val)
+        graphable_property_values.append(row[1])
     for row in float_property_values:
         error = abs(row[1])-row[2]
+        if row[0] == 1:
+            passing_status.append("PASS")
+        else:
+            passing_status.append("FAIL")
         error_values.append(error)
-        scaled_error = get_bar_multiplier(max_val,min_val,error)
-        graphable_error_values.append(scaled_error)
-    return property_names, graphable_error_values
+
+    return property_names, graphable_property_values, error_values, passing_status
 
 
 def get_bar_multiplier(max_val,min_val,val):
     return (val-min_val)/(max_val-min_val)
 
-def ddf_plot(property_names, property_values, figure_index):
+
+def ddf_table(property_names, property_values, error_values, passing_status, figure_index, lens_name):
+    ax = plt.subplot(230 + figure_index)
+    #print(property_names)
+    #print(property_values)
+    colors = []
+    for x in passing_status:
+        if x == 'PASS':
+            colors.append((0,1,0))#(255,0,0))
+        else:
+            colors.append((1,0,0))#(0,255,0))
+
+    #print(colors)
+    table_cells = row_to_column(passing_status)
+    property_names_list = property_names
+    table_cells = add_column(table_cells,property_values)
+    table_cells = add_column(table_cells,error_values)
+    #print(table_cells)
+    ax.axis('tight')
+    ax.axis('off')
+    plt.table(cellText=table_cells,rowLabels=property_names, colLabels = ['Passing Status', 'Measure Value', 'Error'],rowColours=colors,loc='center')
+    ax.set_title(lens_name + ', Go-No-Go')
+    #plt.imshow(ax)
+    #plt.yticks(range(property_names),property_names)
+    #plt.show()
+
+def add_column(list1,list2):
+    for index, row in enumerate(list1):
+        row.append(list2[index])
+        #print(row)
+    return list1
+
+def row_to_column(list):
+    transposed_list = []
+    for i in range(len(list)):
+        transposed_list.append([list[i]])
+    return transposed_list
+
+
+def ddf_plot(property_names, property_values, passing_status, figure_index, lens_name):
     ax = plt.subplot(230 + figure_index)
     #print(property_names)
     #print(property_values)
     plt.barh(property_names, property_values)
+    ax.set_title(lens_name + ', GNG')
     #plt.imshow(ax)
     #plt.yticks(range(property_names),property_names)
-    #plt.show()
+    plt.show()
 
 class DdfDataGet():
     # todo get DBP Tx, Ty, Rz, Full Lens GMC, Center GMC, Center Power PV, Center Power Average
@@ -142,7 +212,7 @@ class DdfDataGet():
         for row in list:  # for all rows in the input list form pmf
             for i in range(len(row)):  # iterate across each row of the pmf
                 row[i] = re.sub('DD=', '', row[i])  # remove all instances of pp at the beginning of powermap rows
-                row[i] = re.sub('\?', '99999', row[
+                row[i] = re.sub('\?', '0', row[
                     i])  # set unmeasured parts of the powermap (represented by '?' in the raw data to 99999 so they can be masked later
         return list  # return the list-form ready pmf for powermap extraction
 
@@ -173,10 +243,10 @@ class PmfDataGet():
 
 def visualize_powermap(powermap_params, figure_index):
     job = powermap_params.get('JOB')
-    powermap = powermap_params.get('POWERMAP')
-    measure_type = powermap_params.get('MEASURE_TYPE')
-    power_quantity = powermap_params.get('POWER_QUANTITY')
-    measured_power_type = powermap_params.get('MEASURED_POWER_TYPE')
+    powermap = powermap_params.get('POWERMAP') #
+    measure_type = powermap_params.get('MEASURE_TYPE') #error value, measure value, or refernce value
+    power_quantity = powermap_params.get('POWER_QUANTITY') # cylinder or spherical equivalent diopter
+    measured_power_type = powermap_params.get('MEASURED_POWER_TYPE') #reflection or transmission
     subplot_name = job + ', ' + measure_type + ', ' + power_quantity + ', ' + measured_power_type
     #fig = plt.figure()
     ax1 = plt.subplot(230 + figure_index)
@@ -188,15 +258,10 @@ def visualize_powermap(powermap_params, figure_index):
     palette.set_bad('w', 1.0)
     masked_powermap = np.ma.masked_where(powermap > 20, powermap)
     plt.imshow(masked_powermap, cmap=palette, interpolation='bilinear', vmin=-0.25, vmax=0.3)
-    #lens_figure.subplots_adjust(top=0.9)
+
     plt.colorbar(label='Power, dpt')
     #plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
     #            bbox_inches='tight')
-
-
-def gen_acc_test():
-    return 0
-
 
 class PmfmtParse():
     def __init__(self, pmfmt_list):
@@ -220,4 +285,10 @@ class PmfmtParse():
         return list  # return the list-form ready pmf for powermap extraction
 
 if __name__ == "__main__":
+    #test_list = ['FAIL', 'FAIL', 'FAIL', 'FAIL', 'PASS']
+    #list1 = row_to_column(test_list)
+    #test = add_column(list1,list1)
+    #print(test)
+    #test_ddf()
+
     main()
