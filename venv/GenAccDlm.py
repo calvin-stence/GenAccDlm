@@ -1,5 +1,6 @@
 import csv
 import glob2
+import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import pprint as pp
@@ -8,9 +9,11 @@ import shutil
 import os
 import re
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.patheffects as path_effects
 
 
 def main():
+
     lens_tests = create_thrupower_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
     lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
@@ -28,9 +31,12 @@ def main():
     test_result_figure_dictionary = {}
     rtc_fail_dictionary = {}
     dbp_fail_dictionary = {}
+    print('--------------------')
     for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'):  # for each fast tool directory found
+        print('Started job in ' + os.path.abspath(fast_tool_file_path))
         pdf_lab, pdf_generator, pdf_fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))
         with PdfPages('InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf') as pdf:
+            start = time.time()
             for item in lens_list:  # for each lens in that fast tool directory
                 lens_figure = plt.figure(file_count, figsize=(21, 11))  # create a figure for that fast tool's data
                 image_count = 1  # set the image count (for placing the image in the right position in the figure) to 1
@@ -44,6 +50,7 @@ def main():
                         ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
                         property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(
                             ddf_data)
+                        #print('Lens DDF Data Ready')
                         #print(failing_values)
                         if 'RTC' in measure_type_file_path:
                             rtc_fail_dictionary[item] = failing_values
@@ -59,17 +66,32 @@ def main():
                             testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap})
                             visualize_powermap(testparams, image_count)
                             image_count = image_count + 1
+                        #print('Lens PMF Plots Complete')
                 lens_figure.suptitle(
-                    'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item)  # add a title to that figure
+                    'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item,size=25)  # add a title to that figure
                 file_count = file_count + 1
                 # lens_figure.subplots_adjust(left = .16, right=.95, top=.95, bottom=0.08)
                 test_result_figure_dictionary[item] = lens_figure
                 plt.close()
             lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary, lens_list)
-            result_table_figure = acceptance_result_figure(lens_verdict_dictionary,test_result)
+            print('Lens Tests And Figures Complete')
+            title_fig = plt.figure(figsize=(21,11))
+            text = title_fig.text(.5, .5, 'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool, ha='center', va='center', size=20)
+            text.set_path_effects([path_effects.Normal()])
+            print('Begin Figure Saving')
+            pdf.savefig(title_fig)
+            plt.close()
+            result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result)
             pdf.savefig(result_table_figure)
+            plt.close()
+
             for item in lens_list:
                 pdf.savefig(test_result_figure_dictionary[item])
+            print(
+                'PDF Saved: ' + 'Generator Acceptance Internal Report' + ' GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool)
+            end = time.time()
+            print('Script Completed in ' + str(end-start) + 'Seconds')
+            print('--------------------')
 
         # plt.show()
         # plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
@@ -89,9 +111,9 @@ def determine_genacc_test_pass(rtc_failing_results, dbp_failing_results, lens_li
             if 'FULL_LENS GMC' in dbp_failing_results[lens]:
                 lens_verdict_dictionary[lens] = 'FAIL'
                 pass
-        #if 'Center Power Average' or 'Center GMC' in failing_params:
-        #    if 'Center Power Average' or 'Center GMC' in dbp_failing_results[lens]:
-        #        lens_verdict_dictionary[lens] = ' CENTER DEFECT '
+        if 'Center Power Average' and 'Center GMC' in failing_params:
+            if 'Center Power Average' and 'Center GMC' in dbp_failing_results[lens]:
+                lens_verdict_dictionary[lens] = ' CENTER DEFECT '
         if 'FULL_LENS Power Average' in failing_params:
             if 'FULL_LENS Power Average' in dbp_failing_results[lens]:
                 lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' CENTER THICK '
@@ -165,31 +187,23 @@ def test_ddf():
 
 
 def ddf_results_prep(results_dictionary):
-    graphable_error_values = []
     error_values = []
     passing_status = []
     property_names = list(results_dictionary.keys())
     property_values = list(results_dictionary.values())
-    graphable_property_values = []
     float_property_values = []
     failing_values = []
-    max_val = 0
-    min_val = 0
     for row in property_values:
         float_property_values.append([float(i) for i in row])
-    for row in float_property_values:
-        graphable_property_values.append(row[1])
     for index, row in enumerate(float_property_values):
         error = abs(row[1]) - row[2]
-        if row[0] == 1:
+        error_values.append(error)
+        if int(row[0]) == 1:
             passing_status.append("PASS")
         else:
             passing_status.append("FAIL")
             failing_values.append(property_names[index])
-            #print(failing_values)
-        error_values.append(error)
-
-    return property_names, graphable_property_values, error_values, passing_status, failing_values
+    return property_names, float_property_values, error_values, passing_status, failing_values
 
 
 def get_bar_multiplier(max_val, min_val, val):
@@ -205,20 +219,31 @@ def acceptance_result_figure(test_result_dictionary,test_result):
     colors = []
     acceptance_list = []
     row_labels = []
+    print(test_result_dictionary)
     row_labels.append('Overall Test Result')
     acceptance_list.append([test_result])
+    if test_result == 'ACCEPTED':
+        colors.append((0, 1, 0))
+    if test_result != 'ACCEPTED':
+        colors.append((1, 0, 0))
+    #todo figure out why some are coming out as orang when they shouldn't be failing the logic test here
     for lens, acceptance in test_result_dictionary.items():
-        row_labels.append(lens)
-        if '' in acceptance:
+        #print(colors)
+        if lens == 'Overall Test Result':
+            print('Potato')
+            pass
+        if acceptance == '':
             acceptance_list.append(['PASS'])
-        else:
-            acceptance_list.append([acceptance])
-        if acceptance is None or 'ACCEPTED':
-            colors.append((0, 1, 0))  # (255,0,0))
-        if 'FAIL' in acceptance:
+            colors.append((0,1,0))
+        if acceptance == 'FAIL':
+            acceptance_list.append(['FAIL'])
             colors.append((1, 0, 0))
-        else:
-            colors.append((1, 0.55, 0))  # (0,255,0))
+        if '' not in acceptance:
+            acceptance_list.append(['DEFECTS: ' + acceptance])
+            colors.append((.5, 1, 0))  # (255,0,0))
+
+
+
     # print(colors)
     table_cells = acceptance_list
     # print(table_cells)
@@ -345,7 +370,13 @@ def visualize_powermap(powermap_params, figure_index):
     palette = copy_colormap
     palette.set_bad('w', 1.0)
     masked_powermap = np.ma.masked_where(powermap > 20, powermap)
-    plt.imshow(masked_powermap, cmap=palette, interpolation='bilinear', vmin=-0.25, vmax=0.3)
+    if power_quantity == 'C':
+        v_max = 0.3
+        v_min = -.3
+    if power_quantity == 'D':
+        v_max = 0.25
+        v_min = -0.25
+    plt.imshow(masked_powermap, cmap=palette, interpolation='gaussian', vmin=v_min, vmax=v_max)
 
     plt.colorbar(label='Power, dpt')
     # plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
@@ -375,10 +406,4 @@ class PmfmtParse():
 
 
 if __name__ == "__main__":
-    # test_list = ['FAIL', 'FAIL', 'FAIL', 'FAIL', 'PASS']
-    # list1 = row_to_column(test_list)
-    # test = add_column(list1,list1)
-    # print(test)
-    # test_ddf()
-
     main()
