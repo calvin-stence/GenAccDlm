@@ -3,9 +3,7 @@ import glob2
 import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import pprint as pp
 import numpy as np
-import shutil
 import os
 import re
 from matplotlib.backends.backend_pdf import PdfPages
@@ -13,7 +11,6 @@ import matplotlib.patheffects as path_effects
 
 
 def main():
-
     lens_tests = create_thrupower_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
     lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
@@ -50,8 +47,8 @@ def main():
                         ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
                         property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(
                             ddf_data)
-                        #print('Lens DDF Data Ready')
-                        #print(failing_values)
+                        # print('Lens DDF Data Ready')
+                        # print(failing_values)
                         if 'RTC' in measure_type_file_path:
                             rtc_fail_dictionary[item] = failing_values
                         if 'DBP' in measure_type_file_path:
@@ -66,31 +63,36 @@ def main():
                             testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap})
                             visualize_powermap(testparams, image_count)
                             image_count = image_count + 1
-                        #print('Lens PMF Plots Complete')
+                        # print('Lens PMF Plots Complete')
                 lens_figure.suptitle(
-                    'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item,size=25)  # add a title to that figure
+                    'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item,
+                    size=25)  # add a title to that figure
                 file_count = file_count + 1
                 # lens_figure.subplots_adjust(left = .16, right=.95, top=.95, bottom=0.08)
                 test_result_figure_dictionary[item] = lens_figure
                 plt.close()
-            lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary, lens_list)
+            lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary,
+                                                                              lens_list)
             print('Lens Tests And Figures Complete')
-            title_fig = plt.figure(figsize=(21,11))
-            text = title_fig.text(.5, .5, 'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool, ha='center', va='center', size=20)
+            title_fig = plt.figure(figsize=(21, 11))
+            text = title_fig.text(.5, .5,
+                                  'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool,
+                                  ha='center', va='center', size=20)
             text.set_path_effects([path_effects.Normal()])
             print('Begin Figure Saving')
             pdf.savefig(title_fig)
             plt.close()
-            result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result)
+            print('Lens Results: ' + str(lens_verdict_dictionary))
+            result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result, lens_list)
             pdf.savefig(result_table_figure)
             plt.close()
-
+            print('Overall Test Result: ' + test_result)
             for item in lens_list:
                 pdf.savefig(test_result_figure_dictionary[item])
             print(
                 'PDF Saved: ' + 'Generator Acceptance Internal Report' + ' GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool)
             end = time.time()
-            print('Script Completed in ' + str(end-start) + 'Seconds')
+            print('Script Completed in ' + str(end - start) + ' Seconds')
             print('--------------------')
 
         # plt.show()
@@ -99,26 +101,26 @@ def main():
 
 
 def determine_genacc_test_pass(rtc_failing_results, dbp_failing_results, lens_list):
-    #print(rtc_failing_results)
-    #print(dbp_failing_results)
+    # print(rtc_failing_results)
+    # print(dbp_failing_results)
     lens_verdict_dictionary = {}
     for item in lens_list:
         lens_verdict_dictionary[item] = ''
     fail_count = 0
     for lens, failing_params in rtc_failing_results.items():
-        #print(failing_params)
+        # print(failing_params)
         if 'FULL_LENS GMC' in failing_params:
             if 'FULL_LENS GMC' in dbp_failing_results[lens]:
                 lens_verdict_dictionary[lens] = 'FAIL'
                 pass
-        if 'Center Power Average' and 'Center GMC' in failing_params:
-            if 'Center Power Average' and 'Center GMC' in dbp_failing_results[lens]:
+        if re.search('Center Power Average',str(failing_params)) or re.search('Center GMC',str(failing_params)) in failing_params:
+            if re.search('Center Power Average', str(failing_params)) or re.search('Center GMC', str(failing_params)) in dbp_failing_results[lens]:
                 lens_verdict_dictionary[lens] = ' CENTER DEFECT '
         if 'FULL_LENS Power Average' in failing_params:
             if 'FULL_LENS Power Average' in dbp_failing_results[lens]:
                 lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' CENTER THICK '
-        #if 'DBP Best Fit Tx' or 'DBP Best Fit Ty' or 'DBP Best Fit Rz' in failing_params:
-        #    lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' POSITIONING'
+        if re.search('DBP Best Fit',str(failing_params)):
+            lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' POSITIONING '
     for lens, failing_params in lens_verdict_dictionary.items():
         if 'FAIL' in lens_verdict_dictionary[lens]:
             fail_count = fail_count + 1
@@ -209,8 +211,9 @@ def ddf_results_prep(results_dictionary):
 def get_bar_multiplier(max_val, min_val, val):
     return (val - min_val) / (max_val - min_val)
 
-def acceptance_result_figure(test_result_dictionary,test_result):
-    test_result_fig = plt.figure(99,figsize=(21,11))
+
+def acceptance_result_figure(test_result_dictionary, test_result, lens_list):
+    test_result_fig = plt.figure(99, figsize=(21, 11))
     ax = plt.subplot(335)
     ax.axis('tight')
     ax.axis('off')
@@ -219,30 +222,31 @@ def acceptance_result_figure(test_result_dictionary,test_result):
     colors = []
     acceptance_list = []
     row_labels = []
-    print(test_result_dictionary)
     row_labels.append('Overall Test Result')
+    row_labels = row_labels + lens_list
     acceptance_list.append([test_result])
     if test_result == 'ACCEPTED':
         colors.append((0, 1, 0))
     if test_result != 'ACCEPTED':
         colors.append((1, 0, 0))
-    #todo figure out why some are coming out as orang when they shouldn't be failing the logic test here
+    # todo figure out why some are coming out as orange when they shouldn't be failing the logic test here
     for lens, acceptance in test_result_dictionary.items():
-        #print(colors)
+        # print(colors)
+        acceptance_string = str(acceptance)
         if lens == 'Overall Test Result':
             print('Potato')
             pass
-        if acceptance == '':
+        if str(acceptance) == '':
             acceptance_list.append(['PASS'])
-            colors.append((0,1,0))
-        if acceptance == 'FAIL':
+            colors.append((0, 1, 0))
+            pass
+        if str(acceptance) == 'FAIL':
             acceptance_list.append(['FAIL'])
             colors.append((1, 0, 0))
-        if '' not in acceptance:
+            pass
+        if str(acceptance) != '':
             acceptance_list.append(['DEFECTS: ' + acceptance])
-            colors.append((.5, 1, 0))  # (255,0,0))
-
-
+            colors.append((1, .5, 0))  # (255,0,0))
 
     # print(colors)
     table_cells = acceptance_list
