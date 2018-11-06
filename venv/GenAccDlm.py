@@ -6,11 +6,17 @@ import matplotlib.colors as colors
 import numpy as np
 import os
 import re
+import shutil
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patheffects as path_effects
 
 
 def main():
+    raw_data_and_extension_pmf = 'RAW_DATA_DUMP\*.PMF'
+    raw_data_and_extension_ddf = 'RAW_DATA_DUMP\*.DDF'
+    file_structure_location = 'STRUCTURED_GENACC_DATA'
+    create_and_move_dlm_data(raw_data_and_extension_pmf, file_structure_location)
+    create_and_move_dlm_data(raw_data_and_extension_ddf, file_structure_location)
     lens_tests = create_thrupower_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
     lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
@@ -30,7 +36,7 @@ def main():
     rtc_fail_dictionary = {}
     dbp_fail_dictionary = {}
     print('--------------------')
-    for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'):  # for each fast tool directory found
+    for fast_tool_file_path in glob2.glob('STRUCTURED_GENACC_DATA\**\FT*'):  # for each fast tool directory found
         print('Started job in ' + os.path.abspath(fast_tool_file_path))
         pdf_lab, pdf_generator, pdf_fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))
         try:
@@ -57,7 +63,6 @@ def main():
                             ddf_table(property_names, property_values, error_values, passing_status, image_count, item)
                             image_count = image_count + 1
                             lab, generator, fast_tool, measure = genacc_figurename_get(abs_filepath)
-                            print(lab)
                             for tests, testparams in lens_tests.items():
                                 testparams.update({'JOB': item + ' ' + measure})
                             for tests, testparams in lens_tests.items():
@@ -97,6 +102,27 @@ def main():
             print('File ' + 'InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf' + ' seems to be open already--please close it!')
             print('--------------------')
 
+def create_and_move_dlm_data(raw_data_and_extension,file_structure_location):
+    for file in glob2.glob(raw_data_and_extension):
+        #print(file)
+        lab, generator_number, fast_tool, lens, measure_type = genacc_rawdata_filename_get(file)
+        structured_data_path = file_structure_location+'\\'+lab+'\\'+generator_number+'\\'+fast_tool+'\\'+measure_type+'_DATA'
+        try:
+            os.makedirs(structured_data_path)
+        except FileExistsError:
+            pass
+        shutil.copy(file,structured_data_path)
+
+def genacc_rawdata_filename_get(abs_filepath):
+    abs_filepath_regex = re.compile(r'([\w]+[\d]?)_([\d]+[\w]?)_(\w\w\d)_(\w\w\w\w[\W]?[\d]?)_(\w\w\w)')
+    search_result = re.search(abs_filepath_regex, abs_filepath)
+    lab = search_result.group(1)
+    generator_number = search_result.group(2)
+    fast_tool = search_result.group(3)
+    lens = search_result.group(4)
+    measure_type = search_result.group(5)
+    return lab, generator_number, fast_tool, lens, measure_type
+
 
 def determine_genacc_test_pass(rtc_failing_results, dbp_failing_results, lens_list):
     lens_verdict_dictionary = {}
@@ -128,7 +154,6 @@ def genacc_filename_get(abs_filepath):
     abs_filepath_regex = re.compile(r'\\([\w]+[\d]?)\\([\d]+[\w]?)\\(\w\w\d)')
     search_result = re.search(abs_filepath_regex, abs_filepath)
     lab = search_result.group(1)
-    print(lab)
     generator_number = search_result.group(2)
     fast_tool = search_result.group(3)
     return lab, generator_number, fast_tool
@@ -240,9 +265,7 @@ def acceptance_result_figure(test_result_dictionary, test_result, lens_list):
                 colors.append((1,0,0))
                 continue
             colors.append((1, .5, 0))  # (255,0,0))
-    print(row_labels)
     table_cells = acceptance_list
-    print(table_cells)
     plt.table(cellText=table_cells, rowLabels=row_labels, colLabels=['Result'],
               rowColours=colors, loc='center',fontsize=10)
     ax.set_title('Overall and Invidual Lens Results')
@@ -300,7 +323,7 @@ class DdfDataGet():
             for search, val in search_dictionary.items():
                 for row in filedata:
                     if search in output_dictionary.keys():
-                        pass
+                        continue
                     for i in range(len(row)):
                         if re.search(search, row[i]):
                             output_dictionary.update({search: row[3:6]})
