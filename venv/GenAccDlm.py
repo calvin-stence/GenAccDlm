@@ -3,9 +3,7 @@ import glob2
 import time
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import pprint as pp
 import numpy as np
-import shutil
 import os
 import re
 from matplotlib.backends.backend_pdf import PdfPages
@@ -13,7 +11,6 @@ import matplotlib.patheffects as path_effects
 
 
 def main():
-
     lens_tests = create_thrupower_tests()
     job_search = re.compile(r'(VER[\w]?[\d]?)')
     lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
@@ -24,7 +21,8 @@ def main():
         'FULL_LENS GMC': '',
         'Center GMC': '',
         'Center Power PV': '',
-        'Center Power Average': ''
+        'Center Power Average': '',
+        'FULL_LENS Power Average': ''
     }
     file_count = 1
     ddf_data_tracker = []
@@ -35,93 +33,90 @@ def main():
     for fast_tool_file_path in glob2.glob('GENERATOR_ACCEPTANCE\**\FT*'):  # for each fast tool directory found
         print('Started job in ' + os.path.abspath(fast_tool_file_path))
         pdf_lab, pdf_generator, pdf_fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))
-        with PdfPages('InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf') as pdf:
-            start = time.time()
-            for item in lens_list:  # for each lens in that fast tool directory
-                lens_figure = plt.figure(file_count, figsize=(21, 11))  # create a figure for that fast tool's data
-                image_count = 1  # set the image count (for placing the image in the right position in the figure) to 1
-                for measure_type_file_path in glob2.glob(
-                        fast_tool_file_path + '\*'):  # for each type of measure (RTC and DBP)
-                    for pmf_file in glob2.glob(
-                            measure_type_file_path + '\\' + item + '*.PMF'):  # for each .PMF file in the current fast tool, lens, and RTC or DBP folder
-                        job_identifier = item  # re.search(job_search, pmf_file) # figure out which
-                        abs_filepath = os.path.abspath(pmf_file)
-                        ddf_file = re.sub('.PMF', '', abs_filepath + '.DDF')
-                        ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
-                        property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(
-                            ddf_data)
-                        #print('Lens DDF Data Ready')
-                        #print(failing_values)
-                        if 'RTC' in measure_type_file_path:
-                            rtc_fail_dictionary[item] = failing_values
-                        if 'DBP' in measure_type_file_path:
-                            dbp_fail_dictionary[item] = failing_values
-                        ddf_data_tracker.append(passing_status)
-                        ddf_table(property_names, property_values, error_values, passing_status, image_count, item)
-                        image_count = image_count + 1
-                        lab, generator, fast_tool, measure = genacc_figurename_get(abs_filepath)
-                        for tests, testparams in lens_tests.items():
-                            testparams.update({'JOB': item + ' ' + measure})
-                        for tests, testparams in lens_tests.items():
-                            testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap})
-                            visualize_powermap(testparams, image_count)
+        try:
+            with PdfPages('InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf') as pdf:
+                start = time.time()
+                for item in lens_list:  # for each lens in that fast tool directory
+                    lens_figure = plt.figure(file_count, figsize=(21, 11))  # create a figure for that fast tool's data
+                    image_count = 1  # set the image count (for placing the image in the right position in the figure) to 1
+                    print('Begin measure of lens ' + item)
+                    for measure_type_file_path in glob2.glob(
+                            fast_tool_file_path + '\*'):  # for each type of measure (RTC and DBP)
+                        for pmf_file in glob2.glob(measure_type_file_path + '\\*' + item + '*.PMF'):  # for each .PMF file in the current fast tool, lens, and RTC or DBP folder
+                            job_identifier = item  # re.search(job_search, pmf_file) # figure out which
+                            abs_filepath = os.path.abspath(pmf_file)
+                            ddf_file = re.sub('.PMF', '', abs_filepath + '.DDF')
+                            ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
+                            property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(
+                                ddf_data)
+                            if 'RTC' in measure_type_file_path:
+                                rtc_fail_dictionary[item] = failing_values
+                            if 'DBP' in measure_type_file_path:
+                                dbp_fail_dictionary[item] = failing_values
+                            ddf_data_tracker.append(passing_status)
+                            ddf_table(property_names, property_values, error_values, passing_status, image_count, item)
                             image_count = image_count + 1
-                        #print('Lens PMF Plots Complete')
-                lens_figure.suptitle(
-                    'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item,size=25)  # add a title to that figure
-                file_count = file_count + 1
-                # lens_figure.subplots_adjust(left = .16, right=.95, top=.95, bottom=0.08)
-                test_result_figure_dictionary[item] = lens_figure
+                            lab, generator, fast_tool, measure = genacc_figurename_get(abs_filepath)
+                            print(lab)
+                            for tests, testparams in lens_tests.items():
+                                testparams.update({'JOB': item + ' ' + measure})
+                            for tests, testparams in lens_tests.items():
+                                testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap})
+                                visualize_powermap(testparams, image_count)
+                                image_count = image_count + 1
+                    lens_figure.suptitle(
+                         'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item,
+                        size=25)  # add a title to that figure
+                    file_count = file_count + 1
+                    test_result_figure_dictionary[item] = lens_figure
+                    plt.close()
+                lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary,
+                                                                                  lens_list)
+                print('Lens Tests And Figures Complete')
+                print('Overall Test Result: ' + test_result)
+                title_fig = plt.figure(figsize=(21, 11))
+                text = title_fig.text(.5, .5,
+                                      'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool,
+                                      ha='center', va='center', size=20)
+                text.set_path_effects([path_effects.Normal()])
+                print('Begin PDF Saving')
+                pdf.savefig(title_fig)
                 plt.close()
-            lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary, lens_list)
-            print('Lens Tests And Figures Complete')
-            title_fig = plt.figure(figsize=(21,11))
-            text = title_fig.text(.5, .5, 'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool, ha='center', va='center', size=20)
-            text.set_path_effects([path_effects.Normal()])
-            print('Begin Figure Saving')
-            pdf.savefig(title_fig)
-            plt.close()
-            result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result)
-            pdf.savefig(result_table_figure)
-            plt.close()
-
-            for item in lens_list:
-                pdf.savefig(test_result_figure_dictionary[item])
-            print(
-                'PDF Saved: ' + 'Generator Acceptance Internal Report' + ' GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool)
-            end = time.time()
-            print('Script Completed in ' + str(end-start) + 'Seconds')
+                print('Lens Results: ' + str(lens_verdict_dictionary))
+                result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result, lens_list)
+                pdf.savefig(result_table_figure)
+                plt.close()
+                for item in lens_list:
+                    pdf.savefig(test_result_figure_dictionary[item])
+                print(
+                    'PDF Saved: ' + 'Generator Acceptance Internal Report' + ' GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool)
+                end = time.time()
+                print('Script Completed in ' + str(end - start) + ' Seconds')
+                print('--------------------')
+        except PermissionError:
+            print('File ' + 'InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf' + ' seems to be open already--please close it!')
             print('--------------------')
-
-        # plt.show()
-        # plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
-        #            bbox_inches='tight')
 
 
 def determine_genacc_test_pass(rtc_failing_results, dbp_failing_results, lens_list):
-    #print(rtc_failing_results)
-    #print(dbp_failing_results)
     lens_verdict_dictionary = {}
     for item in lens_list:
         lens_verdict_dictionary[item] = ''
     fail_count = 0
     for lens, failing_params in rtc_failing_results.items():
-        #print(failing_params)
-        if 'FULL_LENS GMC' in failing_params:
-            if 'FULL_LENS GMC' in dbp_failing_results[lens]:
-                lens_verdict_dictionary[lens] = 'FAIL'
-                pass
-        if 'Center Power Average' and 'Center GMC' in failing_params:
-            if 'Center Power Average' and 'Center GMC' in dbp_failing_results[lens]:
-                lens_verdict_dictionary[lens] = ' CENTER DEFECT '
-        if 'FULL_LENS Power Average' in failing_params:
-            if 'FULL_LENS Power Average' in dbp_failing_results[lens]:
-                lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' CENTER THICK '
-        #if 'DBP Best Fit Tx' or 'DBP Best Fit Ty' or 'DBP Best Fit Rz' in failing_params:
-        #    lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' POSITIONING'
-    for lens, failing_params in lens_verdict_dictionary.items():
-        if 'FAIL' in lens_verdict_dictionary[lens]:
-            fail_count = fail_count + 1
+        if re.search('FULL_LENS GMC',str(failing_params)):
+            if re.search('FULL_LENS GMC',str(dbp_failing_results[lens])):
+                fail_count = fail_count + 1
+                lens_verdict_dictionary[lens] = 'FULL_LENS GMC; '
+        if re.search('Center Power Average',str(failing_params)) or re.search('Center GMC',str(failing_params)):
+            if re.search('Center Power Average', str(dbp_failing_results[lens])) or re.search('Center GMC', str(dbp_failing_results[lens])):
+                lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' CENTER DEFECT;'
+        if re.search('FULL_LENS Power Average',str(failing_params)):
+            if re.search('FULL_LENS Power Average',dbp_failing_results[lens]):
+                lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' CENTER THICKNESS; '
+        if re.search('DBP Best Fit',str(failing_params)):
+            lens_verdict_dictionary[lens] = lens_verdict_dictionary[lens] + ' POSITIONING; '
+
     if fail_count > 1:
         test_result = 'FAIL'
     else:
@@ -130,9 +125,10 @@ def determine_genacc_test_pass(rtc_failing_results, dbp_failing_results, lens_li
 
 
 def genacc_filename_get(abs_filepath):
-    abs_filepath_regex = re.compile('\\\([\w]+)\\\([\d]+[\w]?)\\\(\w\w\d)')
+    abs_filepath_regex = re.compile(r'\\([\w]+[\d]?)\\([\d]+[\w]?)\\(\w\w\d)')
     search_result = re.search(abs_filepath_regex, abs_filepath)
     lab = search_result.group(1)
+    print(lab)
     generator_number = search_result.group(2)
     fast_tool = search_result.group(3)
     return lab, generator_number, fast_tool
@@ -162,8 +158,8 @@ def create_thrupower_tests():
         'MEASURED_POWER_TYPE': 'T'
     }
     thrupower_tests = {
-        'dpt': test_dpt,
-        'cyl': test_cyl
+        'cyl': test_cyl,
+        'dpt': test_dpt
     }
     return thrupower_tests
 
@@ -209,53 +205,51 @@ def ddf_results_prep(results_dictionary):
 def get_bar_multiplier(max_val, min_val, val):
     return (val - min_val) / (max_val - min_val)
 
-def acceptance_result_figure(test_result_dictionary,test_result):
-    test_result_fig = plt.figure(99,figsize=(21,11))
+
+def acceptance_result_figure(test_result_dictionary, test_result, lens_list):
+    test_result_fig = plt.figure(99, figsize=(21, 11))
     ax = plt.subplot(335)
     ax.axis('tight')
     ax.axis('off')
-    # print(property_names)
-    # print(property_values)
     colors = []
     acceptance_list = []
     row_labels = []
-    print(test_result_dictionary)
     row_labels.append('Overall Test Result')
+    row_labels = row_labels + lens_list
     acceptance_list.append([test_result])
     if test_result == 'ACCEPTED':
         colors.append((0, 1, 0))
     if test_result != 'ACCEPTED':
         colors.append((1, 0, 0))
-    #todo figure out why some are coming out as orang when they shouldn't be failing the logic test here
     for lens, acceptance in test_result_dictionary.items():
-        #print(colors)
+        acceptance_string = str(acceptance)
         if lens == 'Overall Test Result':
             print('Potato')
-            pass
-        if acceptance == '':
+            continue
+        if str(acceptance) == '':
             acceptance_list.append(['PASS'])
-            colors.append((0,1,0))
-        if acceptance == 'FAIL':
+            colors.append((0, 1, 0))
+            continue
+        if str(acceptance) == 'FAIL':
             acceptance_list.append(['FAIL'])
             colors.append((1, 0, 0))
-        if '' not in acceptance:
+            continue
+        if str(acceptance) != '':
             acceptance_list.append(['DEFECTS: ' + acceptance])
-            colors.append((.5, 1, 0))  # (255,0,0))
-
-
-
-    # print(colors)
+            if re.search('FULL_LENS GMC',str(acceptance)):
+                colors.append((1,0,0))
+                continue
+            colors.append((1, .5, 0))  # (255,0,0))
+    print(row_labels)
     table_cells = acceptance_list
-    # print(table_cells)
+    print(table_cells)
     plt.table(cellText=table_cells, rowLabels=row_labels, colLabels=['Result'],
-              rowColours=colors, loc='center')
+              rowColours=colors, loc='center',fontsize=10)
     ax.set_title('Overall and Invidual Lens Results')
 
 
 def ddf_table(property_names, property_values, error_values, passing_status, figure_index, lens_name):
     ax = plt.subplot(230 + figure_index)
-    # print(property_names)
-    # print(property_values)
     colors = []
     for x in passing_status:
         if x == 'PASS':
@@ -263,20 +257,15 @@ def ddf_table(property_names, property_values, error_values, passing_status, fig
         else:
             colors.append((1, 0, 0))  # (0,255,0))
 
-    # print(colors)
     table_cells = row_to_column(passing_status)
     property_names_list = property_names
     table_cells = add_column(table_cells, property_values)
     table_cells = add_column(table_cells, error_values)
-    # print(table_cells)
     ax.axis('tight')
     ax.axis('off')
     plt.table(cellText=table_cells, rowLabels=property_names, colLabels=['Passing Status', 'Measure Value', 'Error'],
               rowColours=colors, loc='center')
     ax.set_title(lens_name + ', Go-No-Go')
-    # plt.imshow(ax)
-    # plt.yticks(range(property_names),property_names)
-    # plt.show()
 
 
 def add_column(list1, list2):
@@ -295,12 +284,8 @@ def row_to_column(list):
 
 def ddf_plot(property_names, property_values, passing_status, figure_index, lens_name):
     ax = plt.subplot(230 + figure_index)
-    # print(property_names)
-    # print(property_values)
     plt.barh(property_names, property_values)
     ax.set_title(lens_name + ', GNG')
-    # plt.imshow(ax)
-    # plt.yticks(range(property_names),property_names)
     plt.show()
 
 
@@ -351,7 +336,8 @@ class PmfDataGet():
                     if measure_type_bool and power_quantity_bool and measured_power_type_bool:
                         powermap_raw = np.array(filedata[index + 1:index + 1 + power_matrix_properties.x_col_count])
                         powermap = powermap_raw.astype(float)
-                        self.powermap = powermap
+                        rotated_powermap = np.rot90(powermap,2)
+                        self.powermap = rotated_powermap
 
 
 def visualize_powermap(powermap_params, figure_index):
@@ -377,10 +363,7 @@ def visualize_powermap(powermap_params, figure_index):
         v_max = 0.25
         v_min = -0.25
     plt.imshow(masked_powermap, cmap=palette, interpolation='gaussian', vmin=v_min, vmax=v_max)
-
     plt.colorbar(label='Power, dpt')
-    # plt.savefig(job + '_' + measure_type + '_' + power_quantity + '_' + measured_power_type + '.png',
-    #            bbox_inches='tight')
 
 
 class PmfmtParse():
