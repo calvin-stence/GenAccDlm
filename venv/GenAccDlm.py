@@ -10,6 +10,7 @@ import shutil
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patheffects as path_effects
 
+
 #Main does several things:
 # 1. Find raw data
 # 2. Reorganize raw data into a lab\generator\fast tool\dbp or rtc file structure
@@ -23,7 +24,6 @@ def main():
     create_and_move_dlm_data(raw_data_and_extension_pmf, file_structure_location)
     create_and_move_dlm_data(raw_data_and_extension_ddf, file_structure_location)
     lens_tests = create_thrupower_tests()
-    job_search = re.compile(r'(VER[\w]?[\d]?)')
     lens_list = ['VERD1', 'VERD2', 'VERD3', 'VERC', 'VER1', 'VER0']
     ddf_search_dictionary = {
         'DBP Best Fit Tx': '',
@@ -36,94 +36,91 @@ def main():
         'FULL_LENS Power Average': ''
     }
     file_count = 1
-    ddf_data_tracker = []
     test_result_figure_dictionary = {}
     rtc_fail_dictionary = {}
     dbp_fail_dictionary = {}
     print('--------------------')
     for fast_tool_file_path in glob2.glob('STRUCTURED_GENACC_DATA\**\FT*'):  # for each fast tool directory found
-        print('Started job in ' + os.path.abspath(fast_tool_file_path))
-        pdf_lab, pdf_generator, pdf_fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))
-        report_destination = 'COMPLETED_REPORTS' + '\\' + pdf_lab
+        print('Started job in ' + os.path.abspath(fast_tool_file_path))  # Let the user know that the script has found a job and where that job is
+        lab, generator, fast_tool = genacc_filename_get(os.path.abspath(fast_tool_file_path))  # from the fast tool directory found above, extract the data needed to name the PDF and other figures
+        report_destination = 'COMPLETED_REPORTS' + '\\' + lab  # the PDFs will be saved in this location, in a folder within the COMPLETED_REPORTS folder by the lab name found in the line above
         try:
-            pdf_filename = report_destination+ '\\InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf'
-            with PdfPages(pdf_filename) as pdf:
-                start = time.time()
-                print('Begin measure of lens ')
-                for item in lens_list:  # for each lens in that fast tool directory
-                    figure_height = 11
-                    figure_width = 21
-                    lens_figure = plt.figure(file_count, figsize=(21, 11))  # create a figure for that fast tool's data
-
-                    image_count = 1  # set the image count (for placing the image in the right position in the figure) to 1
-                    print(item, end=" ")
-                    for measure_type_file_path in glob2.glob(
-                            fast_tool_file_path + '\*'):  # for each type of measure (RTC and DBP)
-                        for pmf_file in glob2.glob(measure_type_file_path + '\\*' + item + '*.PMF'):  # for each .PMF file in the current fast tool, lens, and RTC or DBP folder
-                            job_identifier = item  # re.search(job_search, pmf_file) # figure out which
-                            abs_filepath = os.path.abspath(pmf_file)
-                            ddf_file = re.sub('.PMF', '', abs_filepath + '.DDF')
-                            ddf_data = DdfDataGet(ddf_file, ddf_search_dictionary).ddf_contents
-                            property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(
-                                ddf_data)
-                            if 'RTC' in measure_type_file_path:
-                                rtc_fail_dictionary[item] = failing_values
-                                rtc_or_dbp = 'RTC'
-                            if 'DBP' in measure_type_file_path:
-                                dbp_fail_dictionary[item] = failing_values
-                                rtc_or_dbp = 'DBP'
-                            ddf_data_tracker.append(passing_status)
-                            ddf_table(property_names, property_values, error_values, passing_status, image_count, item, rtc_or_dbp)
-                            image_count = image_count + 1
-                            lab, generator, fast_tool, measure = genacc_figurename_get(abs_filepath)
-                            for tests, testparams in lens_tests.items():
-                                testparams.update({'JOB': item + ' ' + measure})
-                            for tests, testparams in lens_tests.items():
-                                testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap})
-                                visualize_powermap(testparams, image_count)
-                                image_count = image_count + 1
-                    lens_figure.suptitle('GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + item, size=25)  # add a title to that figure
-                    dbp_label = lens_figure.text(.03,.68,'DBP',size=35)
-                    dbp_label.set_path_effects([path_effects.Normal()])
-                    rtc_label = lens_figure.text(.03, .22, 'RTC', size=35)
-                    rtc_label.set_path_effects([path_effects.Normal()])
-                    file_count = file_count + 1
-                    lens_figure.subplots_adjust(left=.20,right=.95, bottom=.05,top=.9)
-                    test_result_figure_dictionary[item] = lens_figure
-                    plt.close()
-                lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary,
-                                                                                  lens_list)
-                print('\nLens Tests And Figures Complete')
-                print('Overall Test Result: ' + test_result)
-                title_fig = plt.figure(figsize=(21, 11))
-                title_text = title_fig.text(.5, .5,
-                                      'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + '\n' + 'Essilor Global Engineering Dallas',
-                                      ha='center', va='center', size=40)
-                title_text.set_path_effects([path_effects.Normal()])
-                print('Begin PDF Saving')
-                pdf.savefig(title_fig)
-                plt.close()
+            pdf_filename = report_destination+ '\\InternalGenAcc_' + lab + '_' + generator + '_' + fast_tool + '.pdf' # where the .pdf is created. It is created first, then filled with figures.
+            try:
+                os.makedirs(report_destination)
+            except(FileExistsError):
+                pass
+            with PdfPages(pdf_filename) as pdf: #open a pdf which each fast tool's figures will be saved in
+                start = time.time() #begin measuring how long the script takes for each fast tool
+                print('Begin measure of lens ') #let the user know that a lens is being measured, helps inform the user of progress
+                for lens in lens_list:  # for each lens in that fast tool directory
+                    figure_height = 11 #figure height is 21x11 inches, about a 1920x1080 pixel size to fit modern monitors
+                    figure_width = 21 #size could be dynamic and not hardcoded, but padding wasn't implemented early enough so figure size was increased to fit everything
+                    lens_figure = plt.figure(file_count, figsize=(figure_width, figure_height))  # create a figure for that fast tool's data
+                    image_count = 1  # set the image count (for placing the image in the right position in the figure)
+                    print(lens, end=" ")  # let the user know which lens data is currently being processed
+                    for measure_type_file_path in glob2.glob(fast_tool_file_path + '\*'):  # for each type of measure (RTC and DBP) *within* the fast tool folder
+                        for pmf_file in glob2.glob(measure_type_file_path + '\\*' + lens + '*.PMF'):  # for each .PMF file in the current fast tool, lens, and RTC or DBP folder
+                            pmf_abs_filepath = os.path.abspath(pmf_file) #return the absolute filepath (i.e., the entire file structure between the script and the .pmf file)
+                            ddf_abs_filepath = re.sub('.PMF', '', pmf_abs_filepath + '.DDF')  # replace the .pmf extension on the .ddf file to find the .ddf file for this lens
+                            ddf_data = DdfDataGet(ddf_abs_filepath, ddf_search_dictionary).ddf_contents  # get the relevant ddf contents (defined in the ddf search dictionary)
+                            property_names, property_values, error_values, passing_status, failing_values = ddf_results_prep(ddf_data) # look at the ddf contents and return the relevant results
+                            if 'RTC' in measure_type_file_path:  #if this is an RTC file
+                                rtc_or_dbp = 'RTC'  # remember that this is an RTC file
+                                rtc_fail_dictionary[lens] = failing_values  # the failing DDF results for this lens are stored in the RTC failing results list
+                            if 'DBP' in measure_type_file_path: # if this is a DBP file
+                                rtc_or_dbp = 'DBP'  # remember that this is a DBP file
+                                dbp_fail_dictionary[lens] = failing_values  # the failing DDF results for this  lens are stored in the DBP failing results list
+                            ddf_table(property_names, property_values, error_values, passing_status, image_count, lens, rtc_or_dbp)  # created the go-no-go table from the DDF results
+                            image_count = image_count + 1  # the go-no-go table from the DDF has been greated, increment the figure counter to move to the next slot
+                            for tests, testparams in lens_tests.items():  #for each test in lens_tests, get the test parameters. lens_tests is defined towards the top of main, it defines which measurements are extracted from the .pmf data.
+                                testparams.update({'JOB': lens + ' ' + rtc_or_dbp}) # update the testparams with the lens the script is currently on and wheter it's dbp or rtc
+                            for tests, testparams in lens_tests.items(): # iterate over the updated lens_tests dictionary
+                                testparams.update({'POWERMAP': PmfDataGet(pmf_file, testparams).powermap}) #add a powermap to each testparams key
+                                visualize_powermap(testparams, image_count) #create a figure from that powermap
+                                image_count = image_count + 1  # increment the figure counter to populate the next spot in the overall pdf page figure
+                    lens_figure.suptitle('GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + ', Lens ' + lens, size=25)  # add a title to the figure for this lens
+                    dbp_label = lens_figure.text(.03,.68,'DBP',size=35)  # add a label to the DBP figure row (the positions are hardcoded, foresight would have used axes and zip to do this in a dynamic way
+                    dbp_label.set_path_effects([path_effects.Normal()])  # this makes the text of the above label appear
+                    rtc_label = lens_figure.text(.03, .22, 'RTC', size=35)  # add a label to the RTC figure row
+                    rtc_label.set_path_effects([path_effects.Normal()])  # this makes the text of the above label appear
+                    lens_figure.subplots_adjust(left=.20,right=.95, bottom=.05,top=.9)  # adjust the figures to fit, this is hardcoded and will not dynamically adjust
+                    test_result_figure_dictionary[lens] = lens_figure  # append the lens figure (i.e., a page of the .pdf) to dictionary entry for the lens
+                    file_count = file_count + 1  # increment the lens figure counter to prevent the next page of figures from being written on top of the first
+                    plt.close()  # close the open figures
+                lens_verdict_dictionary, test_result = determine_genacc_test_pass(rtc_fail_dictionary, dbp_fail_dictionary, lens_list)  # takes in the failing parameters from the .ddf and the list of lenses tested, outputs the lens_verdict_dictionary (a record of the failing results for each lens) and the test_result, a pass/fail criterion for the entire generator acceptance test
+                print('\nLens Tests And Figures Complete')  # let the user know that the test has completed generating all figures
+                print('Overall Test Result: ' + test_result)  # let the user know if the test passed or failed
+                title_fig = plt.figure(figsize=(21, 11))  # add a title page
+                # populate the title page with the title
+                title_fig_title = 'Generator Acceptance Internal Report\n' + 'GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool + '\n' + 'Essilor Global Engineering Dallas'
+                title_text = title_fig.text(.5, .5, title_fig_title, ha='center', va='center', size=40)  # create the title text
+                title_text.set_path_effects([path_effects.Normal()])  # make the title text appear
+                print('Begin PDF Saving')  # let the user know that the .pdf is beginning to be filled with figures
+                pdf.savefig(title_fig)  # add the title figure to the pdf
+                plt.close()  # close the title figure
                 print('Lens Results: ' + str(lens_verdict_dictionary))
+                # create the result table from the test result and lens verdict dictionary. this is the table displayed after the title page which summarizes the test results and says whether the test passed
                 result_table_figure = acceptance_result_figure(lens_verdict_dictionary, test_result, lens_list)
-                pdf.savefig(result_table_figure)
-                plt.close()
-                for item in lens_list:
+                pdf.savefig(result_table_figure)  # add the result table to the pdf
+                plt.close()  # close the result table figure
+                for lens in lens_list:
                     #plt.tight_layout()
-                    powermap = test_result_figure_dictionary[item]
-                    pdf.savefig(powermap)
+                    lens_results = test_result_figure_dictionary[lens]  # get the powermaps and go-no-go ddf tables for each lens lens
+                    pdf.savefig(lens_results)  # add lens_results to the pdf
                 print(
                     'PDF Saved: ' + 'Generator Acceptance Internal Report' + ' GenAcc Lab ' + lab + ', Generator ' + generator + ', ' + fast_tool)
-                end = time.time()
-                print('Script Completed in ' + str(end - start) + ' Seconds')
+                end = time.time()  # find the time at the end of the pdf generation
+                print('Script Completed in ' + str(end - start) + ' Seconds')  # let the user know how long it took to process the data and generate the pdf
                 print('--------------------')
-        except PermissionError:
-            print('File ' + 'InternalGenAcc_' + pdf_lab + '_' + pdf_generator + '_' + pdf_fast_tool + '.pdf' + ' seems to be open already--please close it!')
+        except PermissionError:  # let the user know if the file the script is trying to create is already open and skip that file
+            print('File ' + 'InternalGenAcc_' + lab + '_' + generator + '_' + fast_tool + '.pdf' + ' seems to be open already--please close it!')
             print('--------------------')
 
-#This function returns the different DCS (data communication standard) tags used in the pmfmt line (which indicates what
-# sort of powermap is being described) of the .pmf file to indicate to the script which powermaps to use.
 
 #Test prep
+#This function returns the different DCS (data communication standard) tags used in the pmfmt line (which indicates what
+# sort of powermap is being described) of the .pmf file to indicate to the script which powermaps to use.
 def create_thrupower_tests():
     test_dpt = {
         'JOB': '',
@@ -240,7 +237,8 @@ class PmfDataGet():
                         powermap_raw = np.array(filedata[index + 1:index + 1 + power_matrix_properties.x_col_count])
                         powermap = powermap_raw.astype(float)
                         rotated_powermap = np.rot90(powermap,2)
-                        self.powermap = rotated_powermap
+                        flipped_powermap = np.fliplr(rotated_powermap)
+                        self.powermap = flipped_powermap
 
 
 class PmfmtParse():
@@ -283,13 +281,15 @@ def visualize_powermap(powermap_params, figure_index):
     ax1.set_ylabel('Y position, mm')
     ax1.set_xlabel('X position, mm')
     ax1.set_title(subplot_name)
-    copy_colormap = plt.cm.nipy_spectral
+    copy_colormap = plt.cm.get_cmap('nipy_spectral', 30)
+    colormap_list = [copy_colormap(i) for i in range(copy_colormap.N)]
     palette = copy_colormap
     palette.set_bad('w', 1.0)
     masked_powermap = np.ma.masked_where(powermap > 20, powermap)
     if power_quantity == 'C':
         v_max = 0.3
         v_min = -.3
+
     if power_quantity == 'D':
         v_max = 0.25
         v_min = -0.25
