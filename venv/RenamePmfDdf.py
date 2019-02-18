@@ -6,11 +6,11 @@ import glob2
 
 def main():
     print('potato')
-    for file in glob2.glob('dataconversion\\*27008*'):
+    for file in glob2.glob('RAW_DATA_DUMP\\*111111*'):
         print(file)
-        new_file = re.sub(r'27008', '26019', file)
-        new_file_ft = re.sub(r'FT1', 'FT2', new_file)
-        shutil.copy(file, new_file_ft)
+        new_file = re.sub(r'111111', '26419', file)
+        #new_file_ft = re.sub(r'FT1', 'FT2', new_file)
+        shutil.copy(file, new_file)
 
 
 def genacc_rawdata_filename_get(abs_filepath):
