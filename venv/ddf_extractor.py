@@ -100,7 +100,7 @@ class DdfDataGet:
             data_table = plt.table(cellText=table_cells, rowLabels=property_names, rowColours=colors,
                                    colLabels=['Passing\nStatus', 'Measured\nValue', 'Exceeds Spec\nLimit By'], loc='center')
             data_table.set_fontsize(20)
-            data_table.scale(.5, 2)
+            data_table.scale(.5, 2.5)
             plt.title('Go-No-Go Results')
             plt.axis('off')
         except IndexError:

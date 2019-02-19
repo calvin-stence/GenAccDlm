@@ -21,17 +21,17 @@ with PdfPages('debug.pdf') as pdf:
         surfaced_pmf_file = re.sub('unsurfaced','surfaced',file)
         ddf_filepath = re.sub('unsurfaced.PMF', 'surfaced.DDF', file)
         print('Generating figures for file ' + file)
-
+        figures_to_generate = ['RFCM','RFDM','RFCE','RFDE','RTCM','RTDM','RTCE','RTDE']
         pmf_list = []
-        unsurfaced_pmf_obj = pmf_extractor.PmfPowermapsGet(file, figures_to_generate=['RFCM','RFDM','RFCE','RFDE'],state='Unsurfaced')
+        unsurfaced_pmf_obj = pmf_extractor.PmfPowermapsGet(file, figures_to_generate=figures_to_generate,state='Unsurfaced')
         pmf_list.append(unsurfaced_pmf_obj)
-        surfaced_pmf_obj = pmf_extractor.PmfPowermapsGet(surfaced_pmf_file, figures_to_generate=['RFCM','RFDM','RFCE','RFDE'],state='Surfaced')
+        surfaced_pmf_obj = pmf_extractor.PmfPowermapsGet(surfaced_pmf_file, figures_to_generate=figures_to_generate,state='Surfaced')
         pmf_list.append(surfaced_pmf_obj)
         compare_pmf_obj = pmf_extractor.compare_pmf(unsurfaced_pmf_obj,surfaced_pmf_obj)
         pmf_list.append(compare_pmf_obj)
         ddf_obj = ddf_extractor.DdfDataGet(ddf_filepath)
         try:
-            pre_fig = plt.figure(unsurfaced_pmf_obj.lens_description + ' DDF', figsize=(14, 10))
+            pre_fig = plt.figure(unsurfaced_pmf_obj.lens_description + ' DDF', figsize=(14, 5))
             plt.suptitle(unsurfaced_pmf_obj.lens_description)
             ddf_obj.visualize_ddf()
             # plt.show()
@@ -43,8 +43,8 @@ with PdfPages('debug.pdf') as pdf:
 
         for pmf_obj in pmf_list:
             figure_index = 0
-            fig, axs = plt.subplots(nrows=2, ncols=len(pmf_obj.figures_to_generate), figsize=(30, 14))
-            plt.suptitle(pmf_obj.lens_description+' '+pmf_obj.state, size=40)
+            fig, axs = plt.subplots(nrows=2, ncols=len(pmf_obj.figures_to_generate), figsize=(30/4*len(pmf_obj.figures_to_generate), 14))
+            plt.suptitle(pmf_obj.lens_description+', '+pmf_obj.state, size=40)
             for fig_ids in pmf_obj.figures_to_generate:
                 pmf_id = pmf_extractor.PmfId(fig_ids)
                 graph_text_size=20

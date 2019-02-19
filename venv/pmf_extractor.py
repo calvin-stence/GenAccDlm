@@ -208,7 +208,10 @@ def compare_pmf(pmf_obj1,pmf_obj2):
     pmf_difference = copy.deepcopy(pmf_obj1)
     for key,item in pmf_obj1.powermaps.items():
         pmf_difference.powermaps.update({key: np.subtract(item,pmf_obj2.powermaps.get(key))})
-        pmf_difference.state = 'Difference between ' + pmf_obj1.state + ' and ' + pmf_obj2.state
+        if pmf_obj1.state is not None and pmf_obj2.state is not None:
+            pmf_difference.state = 'Difference between ' + pmf_obj1.state + ' and ' + pmf_obj2.state
+        else:
+            pmf_difference.state = 'Difference between ' + pmf_obj1.file + ' and ' + pmf_obj2.file
     return pmf_difference
 
 if __name__ == '__main__':
