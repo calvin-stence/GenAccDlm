@@ -12,12 +12,12 @@ import pmf_extractor
 import ddf_extractor
 
 
-dspc_network_datapath = 'Z:\\*first_polar*'
+dspc_network_datapath = 'Z:\\*DSPC*'
 eto_dspc_datapath = 'test_input/eto_dspc/**/'
-datapath_tac = 'test_input/tac_deformation/Onbit TAC DLM Measures/**/'
-datapath = {#'ETO_DSPC':eto_dspc_datapath,
-            'PLATFORM_DSPC': dspc_network_datapath}#,
-            #'ONBIT_TAC': datapath_tac}
+datapath_tac = 'test_input/tac_deformation/Onbit TAC DLM Measures/**/610'
+datapath = {'ETO_DSPC':eto_dspc_datapath,
+            'PLATFORM_DSPC': dspc_network_datapath,#,
+            'ONBIT_TAC': datapath_tac}
 for names, paths in datapath.items():
     figure_count = 1
     figure_index = 0
@@ -25,7 +25,7 @@ for names, paths in datapath.items():
         for file in glob2.glob(paths + '*.PMF'):
             #ddf_filepath = re.sub('PMF','DDF',file)
             print('Generating figures for file ' + file)
-            pmf_obj = pmf_extractor.PmfPowermapsGet(file, figures_to_generate=['RFCM','RFDM'])
+            pmf_obj = pmf_extractor.PmfPowermapsGet(file, figures_to_generate=['RFCE','RFDE','RTCE','RTDE'])
             #ddf_obj = ddf_extractor.DdfDataGet(ddf_filepath)
             if pmf_obj.lens_id_search:
                 lens_id = pmf_obj.base

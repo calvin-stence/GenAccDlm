@@ -34,6 +34,7 @@ def main():
         'Center Power PV': '',
         'Center Power Average': '',
         'FULL_LENS Power Average': ''
+        'FULL_LENS Power Average': ''
     }
     file_count = 1
     test_result_figure_dictionary = {}

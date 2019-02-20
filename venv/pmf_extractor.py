@@ -38,6 +38,7 @@ def test():
         axs[0][0].axis('image')
         axs[1][figure_index].plot(x, zi)
         axs[1][figure_index].plot(y_90, zi_90)
+        axs[1][figure_index].ylim(top=.25,bottom=-.25)
         figure_index += 1
     plt.show()
 
@@ -110,7 +111,7 @@ def array_transect(x0, y0, x1, y1, z, smooth=None):
 class PmfPowermapsGet():
     def __init__(self, file, figures_to_generate=[],state=None):
         self.file = file
-        self.lens_id_search = re.search(r'(\d+)_(\w\d+)_(\w+-?\d+)_(\d+)', os.path.basename(file))
+        self.lens_id_search = re.search(r'(\d+)_(\w\d+)_(\w\w\w)_(\w+)_(\w+-?\d+)', os.path.basename(file))
         self.surfacing_status_search = re.search(r'(_\w*surfaced)', os.path.basename(file))
         self.state=state
         if self.surfacing_status_search:
@@ -121,9 +122,11 @@ class PmfPowermapsGet():
             #try:
             self.job = self.lens_id_search.group(1)
             self.base = self.lens_id_search.group(2)
-            self.rx = self.lens_id_search.group(3)
-            self.lens_number = self.lens_id_search.group(4)
-            self.lens_description = 'Job ' + self.job + '\n' + self.base + ', ' + self.rx + ', Lens#' + self.lens_number
+            self.material = self.lens_id_search.group(3)
+            #self.state
+            self.rx = self.lens_id_search.group(5)
+            #self.lens_number = self.lens_id_search.group(4)
+            self.lens_description = 'Job ' + self.job + ': ' + self.material + ' ' + self.base + ', ' + self.rx
         else:
             self.lens_description = os.path.basename(file)
             #except:
@@ -151,7 +154,7 @@ class PmfPowermapsGet():
                     self.powermaps.update({power_matrix_id: flipped_powermap})
                     self.powermap_ids.update({power_matrix_id:PmfId(power_matrix_id)})
 
-    def visualize_dlm_pmf(self, powermap_type, figure_label='DLM Powermap ', title=None, v_max=None, v_min=None,cmap=None):
+    def visualize_dlm_pmf(self, powermap_type, figure_label='DLM Powermap', title=None, v_max=None, v_min=None,cmap=None):
         powermap = self.powermaps.get(powermap_type)
         pmf_id = self.powermap_ids[powermap_type]
         measured_power_type = pmf_id.measured_power_type  # error value, measure value, or refernce value

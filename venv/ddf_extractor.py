@@ -92,11 +92,15 @@ class DdfDataGet:
             property_names = list(self.readable_ddf_contents.keys())
             # ax.axis('tight')
             colors = []
-            for item in table_cells:
+            for index, item in enumerate(table_cells):
                 if item[0] == 'PASS':
                     colors.append((0, 1, 0))  # (255,0,0))
                 else:
                     colors.append((1, 0, 0))  # (0,255,0))
+                if len(item)<3:
+                    table_cells[index] = ['NONE', 'NONE','NONE']
+                    colors[index] = (1,0,0)
+
             data_table = plt.table(cellText=table_cells, rowLabels=property_names, rowColours=colors,
                                    colLabels=['Passing\nStatus', 'Measured\nValue', 'Exceeds Spec\nLimit By'], loc='center')
             data_table.set_fontsize(20)
