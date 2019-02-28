@@ -17,7 +17,7 @@ import copy
 
 def test():
     pmf_file = glob2.glob('.PMF')[0]
-    pmf_obj = PmfPowermapsGet(pmf_file, figures_to_generate=['RTCT', 'RTDT', 'RTCE', 'RTDE'])
+    pmf_obj = PmfPowermapsGet(pmf_file, figures_to_generate=['RTSM'])
     figure_index = 0
     plt.figure('test', figsize=(12, 25))
     fig, axs = plt.subplots(nrows=2, ncols=4)
@@ -62,7 +62,8 @@ class PmfId:
                                               'T': 'Transmission'}
         self.power_quantity_dict = {'A': 'Axis Angle',
                                     'C': 'Cylinder',
-                                    'D': 'Diopter'}
+                                    'D': 'Diopter',
+                                    'S': 'Sphere'}
         self.measured_power_type_dict = {'T': 'Reference',
                                          'M': 'Measure',
                                          'E': 'Error'}
@@ -152,7 +153,21 @@ class PmfPowermapsGet():
                     flipped_powermap = np.fliplr(rotated_powermap)
                     power_matrix_id = power_matrix_properties.eye + power_matrix_properties.measured_power_type + power_matrix_properties.power_quantity + power_matrix_properties.measure_type
                     self.powermaps.update({power_matrix_id: flipped_powermap})
-                    self.powermap_ids.update({power_matrix_id:PmfId(power_matrix_id)})
+                    self.powermap_ids.update({power_matrix_id: PmfId(power_matrix_id)})
+
+        for eye in ['R','L']:
+            for transmission_type in ['F','T']:
+                for measure_type in ['M','E']:
+                    try:
+                        diopter_powermap = self.powermaps.get(eye+transmission_type+'D'+measure_type)
+                        cylinder_powermap = self.powermaps.get(eye+transmission_type+'C'+measure_type)
+                        sphere_powermap = sph_from_diopter_cyl(diopter_powermap,cylinder_powermap)
+                        sphere_powermap_id = eye+transmission_type+'S'+measure_type
+                        self.powermaps.update({sphere_powermap_id:sphere_powermap})
+                        self.powermap_ids.update({sphere_powermap_id:PmfId(sphere_powermap_id)})
+                    except TypeError:
+                        continue
+
 
     def visualize_dlm_pmf(self, powermap_type, figure_label='DLM Powermap', title=None, v_max=None, v_min=None,cmap=None):
         powermap = self.powermaps.get(powermap_type)
@@ -191,6 +206,8 @@ class PowermapDescriptionParse():
     def __init__(self, pmfmt_list):
         self.pmfmt_list = pmfmt_list
         self.eye = pmfmt_list[1]  # which eye, left, right or both (L, R, B)
+        if self.eye == 'nan':
+            self.eye = 'R'
         self.measured_power_type = pmfmt_list[2]  # B, F, or T, back, front, or transmitted power
         self.power_quantity = pmfmt_list[3]  # D, C, or A - spherical equivalent power, cylinder power, or cylinder axis
         self.measure_type = pmfmt_list[4]  # M, T, or E- measured, theoretical, or error
@@ -206,6 +223,13 @@ class PowermapDescriptionParse():
                 row[i] = re.sub('PP=', '', row[i])  # remove all instances of pp at the beginning of powermap rows
                 row[i] = re.sub('\?', 'nan', row[i])  # set unmeasured parts of the powermap (represented by '?' in the raw data to 99999 so they can be masked later
         return list  # return the list-form ready pmf for powermap extraction
+
+
+def sph_from_diopter_cyl(diopter_powermap,cyl_powermap):
+    #nonan_diopter = np.nan_to_num(diopter_powermap)
+    #nonan_cyl = np.nan_to_num((cyl_powermap))
+    sph_powermap = diopter_powermap-.5*cyl_powermap
+    return sph_powermap
 
 def compare_pmf(pmf_obj1,pmf_obj2):
     pmf_difference = copy.deepcopy(pmf_obj1)

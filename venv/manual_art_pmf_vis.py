@@ -12,21 +12,28 @@ import pmf_extractor
 import ddf_extractor
 
 
-dspc_network_datapath = 'Z:\\*DSPC*'
+dspc_network_datapath = 'Z:\\*DSPCART*'
 eto_dspc_datapath = 'test_input/eto_dspc/**/'
 datapath_tac = 'test_input/tac_deformation/Onbit TAC DLM Measures/**/610'
-datapath = {'ETO_DSPC':eto_dspc_datapath,
-            'PLATFORM_DSPC': dspc_network_datapath,#,
-            'ONBIT_TAC': datapath_tac}
+manual_art_datapath = 'test_input/manual_art/relevant_art_m_pmf_ddf/'
+datapath = {#'MANUAL ART':manual_art_datapath}#,
+            #'POLYCORE':  'test_input/Polycore Lenses/'}
+            #'ETO_DSPC':eto_dspc_datapath,
+            'PLATFORM_DSPC': dspc_network_datapath}
+            #'ONBIT_TAC': datapath_tac}
 for names, paths in datapath.items():
     figure_count = 1
     figure_index = 0
     with PdfPages(names+'.pdf') as pdf:
         for file in glob2.glob(paths + '*.PMF'):
-            #ddf_filepath = re.sub('PMF','DDF',file)
+            ddf_filepath = re.sub('PMF','DDF',file)
             print('Generating figures for file ' + file)
             pmf_obj = pmf_extractor.PmfPowermapsGet(file, figures_to_generate=['RFCE','RFDE','RTCE','RTDE'])
             #ddf_obj = ddf_extractor.DdfDataGet(ddf_filepath)
+            #ddf_fig = plt.figure('DDF')
+            #ddf_obj.visualize_ddf()
+            #pdf.savefig(ddf_fig)
+            #plt.close(ddf_fig)
             if pmf_obj.lens_id_search:
                 lens_id = pmf_obj.base
             else:

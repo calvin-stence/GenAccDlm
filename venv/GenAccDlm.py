@@ -34,7 +34,6 @@ def main():
         'Center Power PV': '',
         'Center Power Average': '',
         'FULL_LENS Power Average': ''
-        'FULL_LENS Power Average': ''
     }
     file_count = 1
     test_result_figure_dictionary = {}
@@ -346,6 +345,7 @@ def average_pmf():
             print('Files averaged: ' + str(powermap_count))
     plt.show()
 
+
 def angle_to_unit_vectors(angle_array):
     return np.cos(np.deg2rad(angle_array), np.sin(np.deg2rad(angle_array)))
 
@@ -479,7 +479,7 @@ def create_and_move_dlm_data(raw_data_and_extension, file_structure_location):
             os.makedirs(structured_data_path)
         except FileExistsError:
             pass
-        shutil.copy(file, structured_data_path)
+        shutil.move(file, structured_data_path)
 
 
 # The next three functions are all very similar implementaions of a regex search which returns different parts of a filename.
